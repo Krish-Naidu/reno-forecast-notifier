@@ -19,6 +19,10 @@ class StateFileTests(unittest.TestCase):
         finally:
             path.unlink(missing_ok=True)
 
+    def test_forecast_date(self) -> None:
+        report = "700 AM PDT THU SEP 17 2026\nSOARING FORECAST"
+        self.assertEqual(forecast_notifier.forecast_date(report), "2026-09-17")
+
 
 if __name__ == "__main__":
     unittest.main()

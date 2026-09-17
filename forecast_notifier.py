@@ -21,6 +21,7 @@ PRODUCT_URL = "https://forecast.weather.gov/product.php?site=REV&issuedby=REV&pr
 DEFAULT_RECIPIENT = "krish.28.naidu@gmail.com"
 USER_AGENT = "reno-forecast-notifier/1.0 contact=krish.28.naidu@gmail.com"
 PUBLICATION_PATTERN = re.compile(r"(UXUS97\s+KREV\s+\d{6})")
+FORECAST_DATE_PATTERN = re.compile(r"\b(?:MON|TUE|WED|THU|FRI|SAT|SUN)\s+([A-Z]{3})\s+(\d{1,2})\s+(\d{4})\b")
 RENO_TIME_ZONE = ZoneInfo("America/Los_Angeles")
 
 
@@ -60,6 +61,14 @@ def fetch_forecast() -> tuple[str, str]:
 def find_value(forecast: str, pattern: str) -> str:
     match = re.search(pattern, forecast, flags=re.I | re.M)
     return match.group(1).strip() if match else "Not available"
+
+
+def forecast_date(forecast: str) -> str | None:
+    match = FORECAST_DATE_PATTERN.search(forecast)
+    if not match:
+        return None
+    month, day, year = match.groups()
+    return datetime.strptime(f"{month} {day} {year}", "%b %d %Y").date().isoformat()
 
 
 def format_forecast_html(publication_id: str, forecast: str) -> str:
@@ -204,6 +213,9 @@ def notify(config: dict[str, Any], dry_run: bool = False) -> bool:
     state = load_state(config["state_file"]) or {}
     if now.hour < config["send_hour"]:
         logging.info("Waiting until %02d:00 Reno time", config["send_hour"])
+        return False
+    if forecast_date(forecast) != today:
+        logging.info("NWS has not published today's forecast yet; latest report date is %s", forecast_date(forecast))
         return False
     if state.get("sent_date") == today:
         logging.info("Already sent today's forecast; latest publication is %s", publication_id)
