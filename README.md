@@ -12,8 +12,10 @@ The scheduled workflow runs on GitHub-hosted servers. Your computer does not nee
    ```text
    BREVO_API_KEY       your current Brevo API key
    EMAIL_FROM          krishchunk@gmail.com
-   FORECAST_RECIPIENT  krish.28.naidu@gmail.com
+   FORECAST_RECIPIENT  krish.28.naidu@gmail.com, someone@example.com
    ```
+
+   Separate multiple recipients with commas. Each recipient receives the same email.
 
 3. Open **Actions -> Reno forecast notifier**, then choose **Run workflow** to test it.
 

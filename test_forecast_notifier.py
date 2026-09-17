@@ -6,6 +6,12 @@ import forecast_notifier
 
 
 class StateFileTests(unittest.TestCase):
+    def test_parse_recipients(self) -> None:
+        self.assertEqual(
+            forecast_notifier.parse_recipients(" first@example.com,second@example.com "),
+            ["first@example.com", "second@example.com"],
+        )
+
     def test_state_round_trip(self) -> None:
         path = Path(self._testMethodName + ".json")
         try:

@@ -118,13 +118,21 @@ def save_state(path: Path, publication_id: str, sent_date: str) -> None:
     )
 
 
+def parse_recipients(value: str) -> list[str]:
+    recipients = [address.strip() for address in value.split(",") if address.strip()]
+    if not recipients:
+        raise ValueError("FORECAST_RECIPIENT must contain at least one email address")
+    return recipients
+
+
 def send_email(recipient: str, publication_id: str, forecast: str) -> None:
+    recipients = parse_recipients(recipient)
     provider = os.getenv("EMAIL_PROVIDER", "smtp").lower()
     if provider == "brevo":
-        send_brevo_email(recipient, publication_id, forecast)
+        send_brevo_email(recipients, publication_id, forecast)
         return
     if provider == "resend":
-        send_resend_email(recipient, publication_id, forecast)
+        send_resend_email(recipients, publication_id, forecast)
         return
 
     host = os.environ["SMTP_HOST"]
@@ -135,7 +143,7 @@ def send_email(recipient: str, publication_id: str, forecast: str) -> None:
 
     message = EmailMessage()
     message["From"] = sender
-    message["To"] = recipient
+    message["To"] = ", ".join(recipients)
     message["Subject"] = f"New Reno soaring forecast: {publication_id}"
     message.set_content(f"A new NWS Reno soaring forecast was published.\n\n{forecast}\n")
     message.add_alternative(format_forecast_html(publication_id, forecast), subtype="html")
@@ -146,11 +154,11 @@ def send_email(recipient: str, publication_id: str, forecast: str) -> None:
         server.send_message(message)
 
 
-def send_brevo_email(recipient: str, publication_id: str, forecast: str) -> None:
+def send_brevo_email(recipients: list[str], publication_id: str, forecast: str) -> None:
     payload = json.dumps(
         {
             "sender": {"email": os.environ["EMAIL_FROM"]},
-            "to": [{"email": recipient}],
+            "to": [{"email": recipient} for recipient in recipients],
             "subject": f"New Reno soaring forecast: {publication_id}",
             "textContent": f"A new NWS Reno soaring forecast was published.\n\n{forecast}\n",
             "htmlContent": format_forecast_html(publication_id, forecast),
@@ -171,11 +179,11 @@ def send_brevo_email(recipient: str, publication_id: str, forecast: str) -> None
             raise RuntimeError(f"Brevo returned HTTP {response.status}")
 
 
-def send_resend_email(recipient: str, publication_id: str, forecast: str) -> None:
+def send_resend_email(recipients: list[str], publication_id: str, forecast: str) -> None:
     payload = json.dumps(
         {
             "from": os.environ["EMAIL_FROM"],
-            "to": [recipient],
+            "to": recipients,
             "subject": f"New Reno soaring forecast: {publication_id}",
             "text": f"A new NWS Reno soaring forecast was published.\n\n{forecast}\n",
         }
