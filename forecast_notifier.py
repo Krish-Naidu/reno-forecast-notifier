@@ -237,6 +237,8 @@ def main() -> None:
             notify(config, dry_run=args.dry_run)
         except Exception:
             logging.exception("Forecast check failed")
+            if args.once:
+                raise SystemExit(1)
         if args.once:
             return
         time.sleep(config["poll_seconds"])
