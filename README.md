@@ -2,39 +2,24 @@
 
 Polls the National Weather Service Reno soaring guidance product and sends the full forecast by email when a new publication is detected. The default recipient is `krish.28.naidu@gmail.com`.
 
-## Setup
+## GitHub-only setup
 
-1. Create a virtual environment and install the optional WhatsApp dependency:
+The scheduled workflow runs on GitHub-hosted servers. Your computer does not need to be on, and no terminal needs to remain open.
 
-   ```powershell
-   py -m venv .venv
-   .\.venv\Scripts\Activate.ps1
-   pip install -r requirements.txt
+1. In the repository, open **Settings -> Secrets and variables -> Actions**.
+2. Add these repository secrets:
+
+   ```text
+   BREVO_API_KEY       your current Brevo API key
+   EMAIL_FROM          krishchunk@gmail.com
+   FORECAST_RECIPIENT  krish.28.naidu@gmail.com
    ```
 
-2. Copy `.env.example` to `.env` and configure one email provider. Brevo is convenient if you do not own a custom domain: verify your sender address in Brevo, create an API key, set `EMAIL_PROVIDER=brevo`, `BREVO_API_KEY`, and `EMAIL_FROM`. Never put the API key in source control. Resend and Gmail SMTP remain supported.
+3. Open **Actions -> Reno forecast notifier**, then choose **Run workflow** to test it.
 
-3. Export the values from `.env` in your shell, or use a secrets manager. PowerShell example:
+The workflow checks around 7:00 AM Reno time (`America/Los_Angeles`) and sends at most one message per local calendar day. GitHub may start scheduled jobs a few minutes late. The local `.env` file is not used by GitHub Actions and must never be committed.
 
-   ```powershell
-   Get-Content .env | ForEach-Object {
-     if ($_ -and -not $_.StartsWith('#')) { $name, $value = $_ -split '=', 2; [Environment]::SetEnvironmentVariable($name, $value) }
-   }
-   ```
-
-4. Verify the NWS fetch without sending a message:
-
-   ```powershell
-   py forecast_notifier.py --once --dry-run
-   ```
-
-5. Run continuously:
-
-   ```powershell
-   py forecast_notifier.py
-   ```
-
-For unattended operation on Windows, create a Task Scheduler task that starts `py forecast_notifier.py` at login or system startup, with the project directory as the working directory. The program polls every five minutes, waits until 7:00 AM in Reno (`America/Los_Angeles`), and sends only once per local calendar day. Keep the process running so it can send automatically each morning.
+This private repository is suitable for the workflow. GitHub Actions usage is subject to the account's included private-repository minutes, and scheduled workflows may be disabled after long periods with no repository activity.
 
 ## WhatsApp
 
