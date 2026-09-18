@@ -19,7 +19,7 @@ The scheduled workflow runs on GitHub-hosted servers. Your computer does not nee
 
 3. Open **Actions -> Reno forecast notifier**, then choose **Run workflow** to test it.
 
-The workflow checks around 7:00 AM Reno time (`America/Los_Angeles`) and sends at most one message per local calendar day. GitHub may start scheduled jobs a few minutes late. The local `.env` file is not used by GitHub Actions and must never be committed.
+The workflow checks every 15 minutes. The Python code waits until 7:00 AM Reno time (`America/Los_Angeles`), confirms that NWS has published today's report, and sends at most one message per local calendar day. GitHub may start scheduled jobs a few minutes late. The local `.env` file is not used by GitHub Actions and must never be committed.
 
 This private repository is suitable for the workflow. GitHub Actions usage is subject to the account's included private-repository minutes, and scheduled workflows may be disabled after long periods with no repository activity.
 

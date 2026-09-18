@@ -3,8 +3,8 @@ name: Reno forecast notifier
 on:
   workflow_dispatch:
   schedule:
-    # Run during both standard and daylight time; the Python code decides when 7 AM Reno time has arrived.
-    - cron: "*/15 14,15 * * *"
+    # Check every 15 minutes; Python gates sending to 7 AM Reno time and today's report.
+    - cron: "*/15 * * * *"
 
 permissions:
   contents: read
