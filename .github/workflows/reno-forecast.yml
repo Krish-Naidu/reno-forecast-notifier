@@ -3,8 +3,12 @@ name: Reno forecast notifier
 on:
   workflow_dispatch:
   schedule:
-    # Check every 15 minutes; Python gates sending to 7 AM Reno time and today's report.
-    - cron: "*/15 * * * *"
+    # Run once daily at 14:05 UTC (7:05 AM Reno / 3:05 PM London in summer).
+    # A single daily run is far less likely to be delayed by GitHub Actions
+    # than the previous every-15-minutes schedule, which was the cause of the
+    # email arriving ~3 hours late. Python still gates sending to 7 AM Reno
+    # time and today's report as a safety net.
+    - cron: "5 14 * * *"
 
 permissions:
   contents: read
