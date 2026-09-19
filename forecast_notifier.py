@@ -202,16 +202,21 @@ def send_resend_email(recipients: list[str], publication_id: str, forecast: str)
             raise RuntimeError(f"Resend returned HTTP {response.status}")
 
 
+WHATSAPP_MAX_CHARS = 4096
+
+
 def send_whatsapp(recipient: str, publication_id: str, forecast: str) -> None:
     from twilio.rest import Client
 
     client = Client(os.environ["TWILIO_ACCOUNT_SID"], os.environ["TWILIO_AUTH_TOKEN"])
     body = f"New NWS Reno soaring forecast ({publication_id}):\n\n{forecast}"
-    client.messages.create(
-        body=body[:1600],
-        from_=os.environ["TWILIO_WHATSAPP_FROM"],
-        to=os.environ.get("TWILIO_WHATSAPP_TO", recipient),
-    )
+    chunks = [body[i : i + WHATSAPP_MAX_CHARS] for i in range(0, len(body), WHATSAPP_MAX_CHARS)]
+    for chunk in chunks:
+        client.messages.create(
+            body=chunk,
+            from_=os.environ["TWILIO_WHATSAPP_FROM"],
+            to=os.environ.get("TWILIO_WHATSAPP_TO", recipient),
+        )
 
 
 def notify(config: dict[str, Any], dry_run: bool = False) -> bool:

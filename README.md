@@ -27,7 +27,7 @@ This private repository is suitable for the workflow. GitHub Actions usage is su
 
 ## WhatsApp
 
-WhatsApp delivery is optional and uses Twilio. Set `WHATSAPP_ENABLED=true`, add the Twilio credentials, and complete Twilio's WhatsApp sender/recipient approval or sandbox setup. WhatsApp messages are truncated to fit a single message; email remains the complete forecast.
+WhatsApp delivery is optional and uses Twilio. Set `WHATSAPP_ENABLED=true`, add the Twilio credentials, and complete Twilio's WhatsApp sender/recipient approval or sandbox setup. WhatsApp sends the full forecast, splitting it into multiple messages if it exceeds WhatsApp's 4096-character limit.
 
 ## Data source
 
