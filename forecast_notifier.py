@@ -80,9 +80,10 @@ def format_forecast_html(publication_id: str, forecast: str) -> str:
     lifted_index_18z = find_value(forecast, r"FORECASTED LIFTED INDEX\.+VALID 18Z\.+\s+(-?\d+)")
     body = html.escape(forecast)
     cards = "".join(
-        f'<td style="padding:10px;border:1px solid #d9e2ec;background:#f7fafc;">'
+        f'<div class="card" style="display:inline-block;width:31%;box-sizing:border-box;'
+        f'padding:10px;border:1px solid #d9e2ec;background:#f7fafc;margin:0 1% 8px 0;vertical-align:top;">'
         f'<div style="font-size:12px;color:#52606d;">{label}</div>'
-        f'<div style="font-size:22px;font-weight:700;color:#102a43;">{value}</div></td>'
+        f'<div style="font-size:20px;font-weight:700;color:#102a43;">{value}</div></div>'
         for label, value in (
             ("Max temp (F)", max_temp),
             ("Trigger temp (F)", trigger_temp),
@@ -93,14 +94,25 @@ def format_forecast_html(publication_id: str, forecast: str) -> str:
         )
     )
     return (
-        '<div style="font-family:Arial,sans-serif;color:#243b53;max-width:760px;">'
+        '<!DOCTYPE html><html><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        '<style>'
+        ".forecast-pre{white-space:pre;overflow-x:auto;-webkit-overflow-scrolling:touch;"
+        "font:12px/1.4 Consolas,'Courier New',monospace;background:#f7fafc;padding:12px;"
+        "border:1px solid #d9e2ec;}"
+        "@media only screen and (max-width:600px){"
+        ".card{display:block !important;width:100% !important;margin:0 0 8px 0 !important;}"
+        ".forecast-pre{font-size:11px;}"
+        "}"
+        '</style></head><body style="margin:0;padding:0;">'
+        '<div style="font-family:Arial,sans-serif;color:#243b53;max-width:760px;padding:12px;">'
         '<h2 style="color:#102a43;margin-bottom:4px;">Reno Soaring Forecast</h2>'
         f'<p style="color:#52606d;margin-top:0;">Publication: {html.escape(publication_id)}</p>'
         '<h3 style="color:#102a43;border-bottom:2px solid #2f80ed;padding-bottom:6px;">Today at a glance</h3>'
-        f'<table role="presentation" style="border-collapse:collapse;width:100%;"><tr>{cards}</tr></table>'
+        f'<div style="font-size:0;">{cards}</div>'
         '<h3 style="color:#102a43;border-bottom:2px solid #2f80ed;padding-bottom:6px;margin-top:24px;">Full forecast</h3>'
-        f'<pre style="white-space:pre-wrap;font:13px/1.45 Consolas,monospace;background:#f7fafc;padding:16px;border:1px solid #d9e2ec;">{body}</pre>'
-        '</div>'
+        f'<pre class="forecast-pre">{body}</pre>'
+        '</div></body></html>'
     )
 
 
