@@ -63,6 +63,14 @@ def find_value(forecast: str, pattern: str) -> str:
     return match.group(1).strip() if match else "Not available"
 
 
+def find_pair(forecast: str, pattern: str) -> tuple[str, str]:
+    """Return (today, yesterday) from a row that has both columns."""
+    match = re.search(pattern, forecast, flags=re.I | re.M)
+    if not match:
+        return "Not available", "Not available"
+    return match.group(1).strip(), match.group(2).strip()
+
+
 def forecast_date(forecast: str) -> str | None:
     match = FORECAST_DATE_PATTERN.search(forecast)
     if not match:
@@ -72,19 +80,20 @@ def forecast_date(forecast: str) -> str | None:
 
 
 def format_forecast_html(publication_id: str, forecast: str) -> str:
-    max_temp = find_value(forecast, r"FORECASTED MAX\s+TEMP AT RENO \(DEG F\)\.*\s+(\d+)\s+")
-    trigger_temp = find_value(forecast, r"FORECASTED TRIGGER TEMPERATURE \(DEG F\)\.+\s+(\d+)")
-    max_altitude = find_value(forecast, r"FORECASTED MAXIMUM\s+ALTITUDE \(FT MSL\)\.+\s+(\d+)")
-    soaring_index = find_value(forecast, r"FORECASTED SOARING INDEX \(FPM\)\.+\s+(\d+)")
-    k_index_18z = find_value(forecast, r"FORECASTED K-INDEX\.+VALID 18Z\.+\s+(-?\d+)")
-    lifted_index_18z = find_value(forecast, r"FORECASTED LIFTED INDEX\.+VALID 18Z\.+\s+(-?\d+)")
+    max_temp = find_pair(forecast, r"FORECASTED MAX\s+TEMP AT RENO \(DEG F\)\.*\s+(-?\d+)\s+(-?\d+)")
+    trigger_temp = find_pair(forecast, r"FORECASTED TRIGGER TEMPERATURE \(DEG F\)\.+\s+(-?\d+)\s+(-?\d+)")
+    max_altitude = find_pair(forecast, r"FORECASTED MAXIMUM\s+ALTITUDE \(FT MSL\)\.+\s+(-?\d+)\s+(-?\d+)")
+    soaring_index = find_pair(forecast, r"FORECASTED SOARING INDEX \(FPM\)\.+\s+(-?\d+)\s+(-?\d+)")
+    k_index_18z = find_pair(forecast, r"FORECASTED K-INDEX\.+VALID 18Z\.+\s+(-?\d+)\s+(-?\d+)")
+    lifted_index_18z = find_pair(forecast, r"FORECASTED LIFTED INDEX\.+VALID 18Z\.+\s+(-?\d+)\s+(-?\d+)")
     body = html.escape(forecast)
     cards = "".join(
         f'<div class="card" style="display:inline-block;width:31%;box-sizing:border-box;'
         f'padding:10px;border:1px solid #d9e2ec;background:#f7fafc;margin:0 1% 8px 0;vertical-align:top;">'
         f'<div style="font-size:12px;color:#52606d;">{label}</div>'
-        f'<div style="font-size:20px;font-weight:700;color:#102a43;">{value}</div></div>'
-        for label, value in (
+        f'<div style="font-size:20px;font-weight:700;color:#102a43;">{today}'
+        f'<span style="font-size:12px;font-weight:400;color:#829ab1;"> yest {yesterday}</span></div></div>'
+        for label, (today, yesterday) in (
             ("Max temp (F)", max_temp),
             ("Trigger temp (F)", trigger_temp),
             ("Max altitude (ft)", max_altitude),
