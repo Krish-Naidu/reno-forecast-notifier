@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import html
 import json
 import logging
@@ -168,6 +169,12 @@ def send_email(recipient: str, publication_id: str, forecast: str) -> None:
     message["Subject"] = f"New Reno soaring forecast: {publication_id}"
     message.set_content(f"A new NWS Reno soaring forecast was published.\n\n{forecast}\n")
     message.add_alternative(format_forecast_html(publication_id, forecast), subtype="html")
+    message.add_attachment(
+        render_forecast_image(publication_id, forecast),
+        maintype="image",
+        subtype="png",
+        filename=f"reno-soaring-forecast-{publication_id.split()[-1]}.png",
+    )
 
     with smtplib.SMTP(host, port, timeout=30) as server:
         server.starttls()
@@ -183,6 +190,12 @@ def send_brevo_email(recipients: list[str], publication_id: str, forecast: str) 
             "subject": f"New Reno soaring forecast: {publication_id}",
             "textContent": f"A new NWS Reno soaring forecast was published.\n\n{forecast}\n",
             "htmlContent": format_forecast_html(publication_id, forecast),
+            "attachment": [
+                {
+                    "name": f"reno-soaring-forecast-{publication_id.split()[-1]}.png",
+                    "content": base64.b64encode(render_forecast_image(publication_id, forecast)).decode("ascii"),
+                }
+            ],
         }
     ).encode("utf-8")
     request = Request(
@@ -206,6 +219,12 @@ def send_resend_email(recipients: list[str], publication_id: str, forecast: str)
             "from": os.environ["EMAIL_FROM"],
             "to": recipients,
             "subject": f"New Reno soaring forecast: {publication_id}",
+            "attachments": [
+                {
+                    "filename": f"reno-soaring-forecast-{publication_id.split()[-1]}.png",
+                    "content": base64.b64encode(render_forecast_image(publication_id, forecast)).decode("ascii"),
+                }
+            ],
             "text": f"A new NWS Reno soaring forecast was published.\n\n{forecast}\n",
         }
     ).encode("utf-8")
@@ -224,6 +243,50 @@ def send_resend_email(recipients: list[str], publication_id: str, forecast: str)
 
 
 WHATSAPP_MAX_CHARS = 4096
+
+
+FONT_CANDIDATES = (
+    "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
+    "C:/Windows/Fonts/consola.ttf",
+    "C:/Windows/Fonts/cour.ttf",
+)
+
+
+def _mono_font(size: int):
+    from PIL import ImageFont
+
+    for path in FONT_CANDIDATES:
+        if Path(path).exists():
+            return ImageFont.truetype(path, size)
+    return ImageFont.load_default()
+
+
+def render_forecast_image(publication_id: str, forecast: str) -> bytes:
+    """Render the forecast as a PNG so the layout is identical on every device."""
+    import io
+
+    from PIL import Image, ImageDraw
+
+    font = _mono_font(16)
+    padding = 24
+    line_height = 22
+    lines = forecast.split("\n")
+    text_width = int(max((font.getlength(line) for line in lines), default=0))
+    width = max(text_width, int(font.getlength(publication_id))) + padding * 2
+    height = line_height * (len(lines) + 3) + padding * 2
+
+    image = Image.new("RGB", (width, height), "#ffffff")
+    draw = ImageDraw.Draw(image)
+    draw.text((padding, padding), f"Reno Soaring Forecast  {publication_id}", fill="#102a43", font=font)
+    y = padding + line_height * 2
+    for line in lines:
+        draw.text((padding, y), line, fill="#243b53", font=font)
+        y += line_height
+
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    return buffer.getvalue()
 
 
 def send_whatsapp(recipient: str, publication_id: str, forecast: str) -> None:
