@@ -356,6 +356,13 @@ def upload_media(data: bytes, filename: str) -> str:
     raise RuntimeError("Media upload failed; " + "; ".join(errors))
 
 
+def _send_whatsapp_text(client, from_: str, to: str, caption: str, forecast: str) -> None:
+    body = f"{caption}:\n\n{forecast}"
+    chunks = [body[i : i + WHATSAPP_MAX_CHARS] for i in range(0, len(body), WHATSAPP_MAX_CHARS)]
+    for chunk in chunks:
+        client.messages.create(body=chunk, from_=from_, to=to)
+
+
 def send_whatsapp(recipient: str, publication_id: str, forecast: str) -> None:
     from twilio.base.exceptions import TwilioRestException
     from twilio.rest import Client
@@ -374,14 +381,22 @@ def send_whatsapp(recipient: str, publication_id: str, forecast: str) -> None:
     except Exception:
         logging.warning("Could not upload forecast image; falling back to text", exc_info=True)
 
-    try:
-        if media_url:
+    if media_url:
+        try:
             client.messages.create(body=caption, media_url=[media_url], from_=from_, to=to)
             return
-        body = f"{caption}:\n\n{forecast}"
-        chunks = [body[i : i + WHATSAPP_MAX_CHARS] for i in range(0, len(body), WHATSAPP_MAX_CHARS)]
-        for chunk in chunks:
-            client.messages.create(body=chunk, from_=from_, to=to)
+        except TwilioRestException as error:
+            # Trial accounts reject the MediaUrl parameter ("limited parameter
+            # access"); fall back to a plain text message rather than failing.
+            logging.warning("WhatsApp media send rejected (%s); falling back to text", error)
+            if error.code == 21654:
+                raise RuntimeError(
+                    "WhatsApp requires an open 24-hour session. Send any WhatsApp message to "
+                    f"{from_} from your phone to reopen it, then run again. ({error})"
+                ) from error
+
+    try:
+        _send_whatsapp_text(client, from_, to, caption, forecast)
     except TwilioRestException as error:
         if error.code == 21654:
             raise RuntimeError(
