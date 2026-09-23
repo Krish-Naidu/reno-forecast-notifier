@@ -27,7 +27,9 @@ This private repository is suitable for the workflow. GitHub Actions usage is su
 
 ## WhatsApp
 
-WhatsApp delivery is optional and uses Twilio. It sends the **full forecast as a PNG image** (the same image attached to the email) so the monospace columns stay aligned on a phone. Twilio fetches WhatsApp media server-side, so the image is uploaded to a temporary public host (catbox.moe) and the resulting URL is passed to Twilio. If the upload fails, it falls back to sending the forecast as text, split into messages if it exceeds WhatsApp's 4096-character limit.
+WhatsApp delivery is optional and uses Twilio. It sends the **full forecast as a PNG image** (the same image attached to the email) so the monospace columns stay aligned on a phone. Twilio fetches WhatsApp media server-side, so the image is uploaded to a public host (uguu.se, falling back to catbox.moe) and the resulting URL is passed to Twilio. If the upload fails, it falls back to sending the forecast as text, split into messages if it exceeds WhatsApp's 4096-character limit.
+
+> **Sandbox sessions expire after 24 hours.** WhatsApp only allows free-form messages (and media) inside a 24-hour customer service window that opens when *you* message the sender first. Outside that window, business-initiated messages require an approved template, which the sandbox does not support for this use case. So before each send, you must have messaged the sandbox recently — the simplest fix is to send any message (e.g. `join <your sandbox code>`) to the sandbox number from your phone each day, or shortly before the scheduled run. If the window is closed, Twilio returns error 21654 and the run logs a message telling you to reopen it. The email still sends either way.
 
 To enable it:
 

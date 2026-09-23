@@ -290,41 +290,74 @@ def render_forecast_image(publication_id: str, forecast: str) -> bytes:
     return buffer.getvalue()
 
 
+def _multipart(file_field: str, filename: str, data: bytes, fields: list[tuple[str, str]]) -> tuple[bytes, str]:
+    boundary = "----renoforecast" + uuid.uuid4().hex
+    parts: list[bytes] = []
+    for name, value in fields:
+        parts.append(f"--{boundary}\r\n".encode("ascii"))
+        parts.append(f'Content-Disposition: form-data; name="{name}"\r\n\r\n'.encode("ascii"))
+        parts.append(f"{value}\r\n".encode("ascii"))
+    parts.append(f"--{boundary}\r\n".encode("ascii"))
+    parts.append(f'Content-Disposition: form-data; name="{file_field}"; filename="{filename}"\r\n'.encode("ascii"))
+    parts.append(b"Content-Type: image/png\r\n\r\n")
+    parts.append(data)
+    parts.append(f"\r\n--{boundary}--\r\n".encode("ascii"))
+    return b"".join(parts), f"multipart/form-data; boundary={boundary}"
+
+
+def _post_upload(
+    url: str,
+    file_field: str,
+    data: bytes,
+    filename: str,
+    fields: list[tuple[str, str]] | None = None,
+) -> str:
+    body, content_type = _multipart(file_field, filename, data, fields or [])
+    request = Request(
+        url,
+        data=body,
+        headers={"Content-Type": content_type, "User-Agent": USER_AGENT},
+        method="POST",
+    )
+    with urlopen(request, timeout=60) as response:
+        return response.read().decode("utf-8").strip()
+
+
 def upload_media(data: bytes, filename: str) -> str:
     """Upload image bytes to a public host and return a direct URL.
 
     Twilio fetches WhatsApp media server-side, so the image must be reachable
-    on a public URL; we cannot attach the bytes directly.
+    on a public URL; we cannot attach the bytes directly. Multiple hosts are
+    tried because free hosts sometimes reject datacenter IP ranges.
     """
-    boundary = "----renoforecast" + uuid.uuid4().hex
-    body = b"".join(
-        [
-            f"--{boundary}\r\n".encode("ascii"),
-            f'Content-Disposition: form-data; name="reqtype"\r\n\r\nfileupload\r\n'.encode("ascii"),
-            f"--{boundary}\r\n".encode("ascii"),
-            f'Content-Disposition: form-data; name="fileToUpload"; filename="{filename}"\r\n'.encode("ascii"),
-            b"Content-Type: image/png\r\n\r\n",
-            data,
-            f"\r\n--{boundary}--\r\n".encode("ascii"),
-        ]
+    hosts = (
+        ("uguu", lambda: _post_upload("https://uguu.se/upload?output=text", "files[]", data, filename)),
+        (
+            "catbox",
+            lambda: _post_upload(
+                "https://catbox.moe/user/api.php",
+                "fileToUpload",
+                data,
+                filename,
+                [("reqtype", "fileupload")],
+            ),
+        ),
     )
-    request = Request(
-        "https://catbox.moe/user/api.php",
-        data=body,
-        headers={
-            "Content-Type": f"multipart/form-data; boundary={boundary}",
-            "User-Agent": USER_AGENT,
-        },
-        method="POST",
-    )
-    with urlopen(request, timeout=60) as response:
-        url = response.read().decode("utf-8").strip()
-    if not url.startswith("http"):
-        raise RuntimeError(f"Unexpected upload response: {url[:200]}")
-    return url
+    errors: list[str] = []
+    for name, upload in hosts:
+        try:
+            url = upload()
+        except Exception as error:  # noqa: BLE001 - try the next host
+            errors.append(f"{name}: {error}")
+            continue
+        if url.startswith("http"):
+            return url
+        errors.append(f"{name}: unexpected response {url[:120]!r}")
+    raise RuntimeError("Media upload failed; " + "; ".join(errors))
 
 
 def send_whatsapp(recipient: str, publication_id: str, forecast: str) -> None:
+    from twilio.base.exceptions import TwilioRestException
     from twilio.rest import Client
 
     client = Client(os.environ["TWILIO_ACCOUNT_SID"], os.environ["TWILIO_AUTH_TOKEN"])
@@ -341,14 +374,21 @@ def send_whatsapp(recipient: str, publication_id: str, forecast: str) -> None:
     except Exception:
         logging.warning("Could not upload forecast image; falling back to text", exc_info=True)
 
-    if media_url:
-        client.messages.create(body=caption, media_url=[media_url], from_=from_, to=to)
-        return
-
-    body = f"{caption}:\n\n{forecast}"
-    chunks = [body[i : i + WHATSAPP_MAX_CHARS] for i in range(0, len(body), WHATSAPP_MAX_CHARS)]
-    for chunk in chunks:
-        client.messages.create(body=chunk, from_=from_, to=to)
+    try:
+        if media_url:
+            client.messages.create(body=caption, media_url=[media_url], from_=from_, to=to)
+            return
+        body = f"{caption}:\n\n{forecast}"
+        chunks = [body[i : i + WHATSAPP_MAX_CHARS] for i in range(0, len(body), WHATSAPP_MAX_CHARS)]
+        for chunk in chunks:
+            client.messages.create(body=chunk, from_=from_, to=to)
+    except TwilioRestException as error:
+        if error.code == 21654:
+            raise RuntimeError(
+                "WhatsApp requires an open 24-hour session. Send any WhatsApp message to "
+                f"{from_} from your phone to reopen it, then run again. ({error})"
+            ) from error
+        raise
 
 
 def notify(config: dict[str, Any], dry_run: bool = False) -> bool:
@@ -374,7 +414,12 @@ def notify(config: dict[str, Any], dry_run: bool = False) -> bool:
     if os.getenv("EMAIL_ENABLED", "true").lower() == "true":
         send_email(config["recipient"], publication_id, forecast)
     if os.getenv("WHATSAPP_ENABLED", "false").lower() == "true":
-        send_whatsapp(config["recipient"], publication_id, forecast)
+        try:
+            send_whatsapp(config["recipient"], publication_id, forecast)
+        except Exception:
+            # Do not fail the run or skip saving state: the email already went
+            # out, and a retry would send a duplicate email.
+            logging.exception("WhatsApp notification failed")
 
     save_state(config["state_file"], publication_id, today)
     logging.info("Sent new forecast notification for %s", publication_id)
