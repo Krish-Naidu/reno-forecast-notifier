@@ -11,6 +11,7 @@ import os
 import re
 import smtplib
 import time
+import uuid
 from datetime import datetime
 from email.message import EmailMessage
 from pathlib import Path
@@ -289,18 +290,65 @@ def render_forecast_image(publication_id: str, forecast: str) -> bytes:
     return buffer.getvalue()
 
 
+def upload_media(data: bytes, filename: str) -> str:
+    """Upload image bytes to a public host and return a direct URL.
+
+    Twilio fetches WhatsApp media server-side, so the image must be reachable
+    on a public URL; we cannot attach the bytes directly.
+    """
+    boundary = "----renoforecast" + uuid.uuid4().hex
+    body = b"".join(
+        [
+            f"--{boundary}\r\n".encode("ascii"),
+            f'Content-Disposition: form-data; name="reqtype"\r\n\r\nfileupload\r\n'.encode("ascii"),
+            f"--{boundary}\r\n".encode("ascii"),
+            f'Content-Disposition: form-data; name="fileToUpload"; filename="{filename}"\r\n'.encode("ascii"),
+            b"Content-Type: image/png\r\n\r\n",
+            data,
+            f"\r\n--{boundary}--\r\n".encode("ascii"),
+        ]
+    )
+    request = Request(
+        "https://catbox.moe/user/api.php",
+        data=body,
+        headers={
+            "Content-Type": f"multipart/form-data; boundary={boundary}",
+            "User-Agent": USER_AGENT,
+        },
+        method="POST",
+    )
+    with urlopen(request, timeout=60) as response:
+        url = response.read().decode("utf-8").strip()
+    if not url.startswith("http"):
+        raise RuntimeError(f"Unexpected upload response: {url[:200]}")
+    return url
+
+
 def send_whatsapp(recipient: str, publication_id: str, forecast: str) -> None:
     from twilio.rest import Client
 
     client = Client(os.environ["TWILIO_ACCOUNT_SID"], os.environ["TWILIO_AUTH_TOKEN"])
-    body = f"New NWS Reno soaring forecast ({publication_id}):\n\n{forecast}"
+    to = os.environ.get("TWILIO_WHATSAPP_TO", recipient)
+    from_ = os.environ["TWILIO_WHATSAPP_FROM"]
+    caption = f"New NWS Reno soaring forecast ({publication_id})"
+
+    media_url = None
+    try:
+        media_url = upload_media(
+            render_forecast_image(publication_id, forecast),
+            f"reno-soaring-forecast-{publication_id.split()[-1]}.png",
+        )
+    except Exception:
+        logging.warning("Could not upload forecast image; falling back to text", exc_info=True)
+
+    if media_url:
+        client.messages.create(body=caption, media_url=[media_url], from_=from_, to=to)
+        return
+
+    body = f"{caption}:\n\n{forecast}"
     chunks = [body[i : i + WHATSAPP_MAX_CHARS] for i in range(0, len(body), WHATSAPP_MAX_CHARS)]
     for chunk in chunks:
-        client.messages.create(
-            body=chunk,
-            from_=os.environ["TWILIO_WHATSAPP_FROM"],
-            to=os.environ.get("TWILIO_WHATSAPP_TO", recipient),
-        )
+        client.messages.create(body=chunk, from_=from_, to=to)
 
 
 def notify(config: dict[str, Any], dry_run: bool = False) -> bool:

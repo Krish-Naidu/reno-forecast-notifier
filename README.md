@@ -27,7 +27,28 @@ This private repository is suitable for the workflow. GitHub Actions usage is su
 
 ## WhatsApp
 
-WhatsApp delivery is optional and uses Twilio. Set `WHATSAPP_ENABLED=true`, add the Twilio credentials, and complete Twilio's WhatsApp sender/recipient approval or sandbox setup. WhatsApp sends the full forecast, splitting it into multiple messages if it exceeds WhatsApp's 4096-character limit.
+WhatsApp delivery is optional and uses Twilio. It sends the **full forecast as a PNG image** (the same image attached to the email) so the monospace columns stay aligned on a phone. Twilio fetches WhatsApp media server-side, so the image is uploaded to a temporary public host (catbox.moe) and the resulting URL is passed to Twilio. If the upload fails, it falls back to sending the forecast as text, split into messages if it exceeds WhatsApp's 4096-character limit.
+
+To enable it:
+
+1. Add these repository **secrets** (Settings -> Secrets and variables -> Actions -> Secrets):
+
+   ```text
+   TWILIO_ACCOUNT_SID     your Twilio Account SID
+   TWILIO_AUTH_TOKEN      your Twilio Auth Token
+   TWILIO_WHATSAPP_FROM   the Twilio WhatsApp sender, e.g. whatsapp:+14155255555
+   TWILIO_WHATSAPP_TO     your number, e.g. whatsapp:+447700900000
+   ```
+
+2. Add a repository **variable** (Secrets and variables -> Actions -> Variables):
+
+   ```text
+   WHATSAPP_ENABLED = true
+   ```
+
+   WhatsApp stays off (and the workflow still runs) until this variable is set.
+
+3. Complete Twilio's WhatsApp sender/recipient approval or sandbox setup.
 
 ## Data source
 
